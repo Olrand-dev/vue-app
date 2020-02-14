@@ -1,0 +1,11 @@
+.vscode/
+.idea/
+files/
+img/
+*.zip
+*.xls
+*.xlsx
+*.xml
+*.csv
+*.pdf
+*.json

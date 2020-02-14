@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="ua">
+
+<head>
+
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+
+    <title>Arania App</title>
+
+    <link type="text/css" rel="stylesheet" href="css/bootstrap.min.css" />
+    <link type="text/css" rel="stylesheet" href="css/bootstrap-vue.min.css" />
+    <link type="text/css" rel="stylesheet" href="css/fontawesome-all.min.css" />
+    <link type="text/css" rel="stylesheet" href="css/vue-toasts.css" />
+
+    <link type="text/css" rel="stylesheet" href="css/main.css" />
+
+</head>
+
+<body>
+
+    <div id="app">
+
+        <b-container style="display:none" v-show="loaded">
+            <b-row>
+
+                <b-col cols="12" class="nav-menu">
+                    <span class="nav-item">
+                        <router-link to="/orders"><i class="fa fa-list-alt"></i> Замовлення</router-link>
+                    </span>
+                    <span class="nav-item">
+                        <router-link to="/stores"><i class="fa fa-shopping-cart"></i> Магазини</router-link>
+                    </span>
+                    <span class="nav-item">
+                        <router-link to="/customers"><i class="fa fa-user"></i> Клієнти</router-link>
+                    </span>
+                </b-col>
+
+                <b-col cols="12" class="content-wrapper">
+
+                    <router-view></router-view>
+
+                </b-col>
+
+                <b-col cols="12" class="text-center">
+                    <b-row>
+
+                        <b-col cols="8" class="text-left">
+                            <b-row>
+
+                                <b-col cols="6" class="text-right">
+                                    <b-pagination
+                                        v-model="page"
+                                        :total-rows="itemsCount"
+                                        :per-page="perPage"
+                                        limit="7"
+                                        @input="pagenate"
+                                    ></b-pagination>
+                                </b-col>
+
+                                <b-col cols="2" class="text-left">
+                                    <b-form-select 
+                                        v-model="perPage" 
+                                        :options="perPageOptions"
+                                        class="per-page-select"
+                                        @change="setStorePerPage"
+                                    ></b-form-select>
+                                </b-col>
+
+                            </b-row>
+                        </b-col>
+
+                        <b-col cols="4" class="text-right">
+                            <b-button variant="success" @click="saveDb">
+                                <i class="fa fa-save"></i> Зберегти базу
+                            </b-button>
+                            <b-button v-if="patchMode" variant="outline-secondary" @click="patch">
+                                patch
+                            </b-button>
+                        </b-col>
+
+                    </b-row>
+                </b-col>
+
+                <b-col cols="12" class="text-center text-muted copyright">
+                    <span v-html="copyright">{{copyright}}</span>
+                </b-col>
+
+            </b-row>
+        </b-container>
+
+        <b-modal size="xl" class="hidden" ref="images-modal" hide-footer>
+            <div class="d-block text-center">
+                <b-button v-if="imagesList && imagesList.length > 1" class="img-arrow prev-arrow" @click="prevImg">
+                    <i class="fa fa-chevron-left"></i>
+                </b-button>
+                <b-button v-if="imagesList && imagesList.length > 1" class="img-arrow next-arrow" @click="nextImg">
+                    <i class="fa fa-chevron-right"></i>
+                </b-button>
+                <img :src="imgUrl" alt="order item image" class="order-modal-img">
+            </div>
+        </b-modal>
+
+    </div>
+
+
+    <!-- ORDERS -->
+    <script type="text/x-template" id="orders-list-template">
+
+        <b-row>
+
+            <b-col cols="3" class="text-left">
+                <b-form-select v-model="sortType" :options="ordersSortOptions"></b-form-select>
+            </b-col>
+            <b-col cols="3" offset="6" class="text-right">
+                <b-button variant="primary" @click="openOrderSettings">
+                    <i class="fa fa-plus"></i> Додати замовлення
+                </b-button>
+            </b-col>
+
+            <transition name="slide">
+                <b-col v-if="orderSettingsShowOn()" cols="12" class="box sliding-box">
+                    <b-card class="box">
+                        <b-row>
+                            <b-col cols="8">
+                                <b-form-select v-model="order.storeId" :options="storeOptions"></b-form-select>
+                            </b-col>
+                            <b-col cols="4" class="text-right">
+                                <b-button variant="primary" @click="addOrder">
+                                    <i class="fa fa-arrow-right"></i> Додати
+                                </b-button>
+                                <b-button variant="danger" @click="close('order-settings')">
+                                    <i class="fa fa-times"></i>
+                                </b-button>
+                            </b-col>
+                        </b-row>
+                    </b-card>
+                </b-col>
+            </transition>
+
+            <b-col v-if="ordersList.length === 0" cols="12" class="box">
+                <b-card class="text-center text-muted">
+                    <p class="card-text">Немає елементів для відображення.</p>
+                </b-card>
+            </b-col>
+
+            <b-col cols="12" v-for="order in ordersList" :key="order.$loki" class="box">
+
+                <b-card>
+                    <b-row>
+
+                        <b-col cols="9">
+                            <i v-if="order.status === 'order_open'" class="fa fa-play order-status-icon open"></i>
+                            <i v-if="order.status === 'order_closed'" class="fa fa-check order-status-icon closed"></i>
+                            {{order.storeName}} [{{order.date}}]
+                        </b-col>
+                        <b-col cols="3" class="text-right">
+
+                            <b-button v-b-toggle="'order-box-' + order.$loki" variant="primary">
+                                <span class="when-opened"><i class="fa fa-minus"></i> Закрити</span> 
+                                <span class="when-closed"><i class="fa fa-plus"></i> Відкрити</span>
+                            </b-button>
+                            <b-button variant="danger" @click="deleteOrder(order.$loki)">
+                                <i class="fa fa-trash-alt"></i>
+                            </b-button>
+
+                        </b-col>
+
+                        <b-col cols="12">
+                            <b-collapse :id="'order-box-' + order.$loki">
+
+                                <b-row>
+
+                                    <b-col cols="3" class="text-left box">
+                                        <b-form-select v-model="order.status" :options="orderStatusOptions"></b-form-select>
+                                    </b-col>
+                                    <b-col cols="9" class="text-right box">
+                                        <b-button variant="outline-secondary" @click="toogleOrderStatistics(order.$loki)">
+                                            <i class="fa fa-eye"></i>
+                                        </b-button>
+                                        <b-button variant="outline-secondary" @click="openOrderItemSettings(order.$loki)">
+                                            <i class="fa fa-user-plus"></i> Додати клієнта
+                                        </b-button>
+                                    </b-col>
+
+                                    <transition name="slide">
+                                        <b-col v-if="orderStatisticsShowOn(order.$loki)" cols="12" class="box sliding-box">
+                                            <b-card>
+                                                <b-row>
+                                                    <b-col cols="12">
+                                                        <b-table-simple hover small caption-top responsive>
+                                                            <b-tbody>
+
+                                                                <b-tr>
+                                                                    <b-th>Загальна вартість (грн.)</b-th>
+                                                                    <b-td>{{order.fullSum}}</b-td>
+                                                                </b-tr>
+                                                                <b-tr>
+                                                                    <b-th>Загальна вага (кг.)</b-th>
+                                                                    <b-td>{{order.fullWeight}}</b-td>
+                                                                </b-tr>
+                                                                <b-tr>
+                                                                    <b-th>Загальна вартість доставки магазину (грн.)</b-th>
+                                                                    <b-td>{{order.fullStoreDeliverySum}}</b-td>
+                                                                </b-tr>
+                                                                <b-tr>
+                                                                    <b-th>Загальна вартість доставки перевезника (грн.)</b-th>
+                                                                    <b-td>{{order.fullCarrierDeliverySum}}</b-td>
+                                                                </b-tr>
+
+                                                            </b-tbody>
+                                                        </b-table-simple>
+                                                    </b-col>
+                                                </b-row>
+                                            </b-card>
+                                        </b-col>
+                                    </transition>
+
+                                    <transition name="slide">
+                                        <b-col v-if="orderItemSettingsShowOn(order.$loki)" cols="12" class="box sliding-box">
+                                            <b-card>
+                                                <b-row>
+                                                    <b-col cols="8">
+                                                        <b-form-select v-model="orderItem.customerId" :options="customerOptions"></b-form-select>
+                                                    </b-col>
+                                                    <b-col cols="4" class="text-right">
+                                                        <b-button variant="primary" @click="addOrderItem(order.$loki)">
+                                                            <i class="fa fa-arrow-right"></i> Додати
+                                                        </b-button>
+                                                        <b-button variant="danger" @click="close('order-' + order.$loki + '-item-settings')">
+                                                            <i class="fa fa-times"></i>
+                                                        </b-button>
+                                                    </b-col>
+                                                </b-row>
+                                            </b-card>
+                                        </b-col>
+                                    </transition>
+                                </b-row>
+
+                                <b-card class="order-item" v-for="item in order.items" :key="item.customerId">
+                                    <p class="card-text">
+                                        <b-row>
+
+                                            <b-col v-if="orderItemEditOff(order.$loki, item.customerId)" cols="9">
+                                                {{item.customerName}} - {{item.sum}} грн. [{{item.date}}]
+                                            </b-col>
+
+                                            <b-col v-if="orderItemEditOn(order.$loki, item.customerId)" cols="9">
+                                                
+                                                <b-row>
+
+                                                    <b-col cols="3">
+                                                        <b-form-group id="order-item-edit-sum" label="Ціна (грн.):" label-for="order-item-sum">
+                                                            <b-form-input
+                                                                id="order-item-sum"
+                                                                v-model="item.sum"
+                                                                type="number"
+                                                                step="0.1"
+                                                                min="0"
+                                                                placeholder="Ціна товарів..."
+                                                            ></b-form-input>
+                                                        </b-form-group>
+                                                    </b-col>
+
+                                                    <b-col cols="3">
+                                                        <b-form-group id="order-item-edit-weight" label="Вага (г.):" label-for="order-item-weight">
+                                                            <b-form-input
+                                                                id="order-item-weight"
+                                                                v-model="item.weight"
+                                                                type="number"
+                                                                step="50"
+                                                                min="0"
+                                                                placeholder="Вага..."
+                                                            ></b-form-input>
+                                                        </b-form-group>
+                                                    </b-col>
+
+                                                </b-row>
+
+                                                <b-row>
+
+                                                    <b-col cols="3">
+                                                        <b-form-group 
+                                                            id="order-item-edit-store-delivery-sum" 
+                                                            label="Доставка магазина (грн.):" 
+                                                            label-for="order-item-store-delivery-sum"
+                                                        >
+                                                            <b-form-input
+                                                                id="order-item-store-delivery-sum"
+                                                                v-model="item.storeDeliverySum"
+                                                                type="number"
+                                                                step="0.1"
+                                                                min="0"
+                                                                placeholder="Вартість доставки магазина..."
+                                                            ></b-form-input>
+                                                        </b-form-group>
+                                                    </b-col>
+
+                                                    <b-col cols="3">
+                                                        <b-form-group 
+                                                            id="order-item-edit-carrier-delivery-sum" 
+                                                            label="Доставка перевезника (грн.):" 
+                                                            label-for="order-item-carrier-delivery-sum"
+                                                        >
+                                                            <b-form-input
+                                                                id="order-item-carrier-delivery-sum"
+                                                                v-model="item.carrierDeliverySum"
+                                                                type="number"
+                                                                step="0.1"
+                                                                min="0"
+                                                                placeholder="Вартість доставки перевезника..."
+                                                            ></b-form-input>
+                                                        </b-form-group>
+                                                    </b-col>
+
+                                                </b-row>
+
+                                                <b-row>
+                                                    <b-col cols="12" class="text-left">
+
+                                                        <b-button variant="outline-secondary" @click="openOrderItemImageSettings(order.$loki, item.customerId)">
+                                                            <i class="fa fa-image"></i> Додати скріншот
+                                                        </b-button>
+
+                                                    </b-col>
+
+                                                    <transition name="slide">
+                                                        <b-col 
+                                                            v-if="orderItemImageSettingsShowOn(order.$loki, item.customerId)" 
+                                                            cols="12" 
+                                                            class="text-left box sliding-box"
+                                                        >
+
+                                                            <b-row>
+
+                                                                <b-col cols="6">
+                                                                    <b-row>
+                                                                        <b-col cols="12">
+                                                                            <form id="file-send" action="" method="POST" enctype="multipart/form-data">
+                                                                                <input type="hidden" name="MAX_FILE_SIZE" value="300000000">
+                                                                                <input 
+                                                                                    type="file" 
+                                                                                    :name="order.$loki + '-' + item.customerId + '-image-files'" 
+                                                                                    class="file-input" 
+                                                                                    multiple
+                                                                                >
+                                                                            </form>
+                                                                        </b-col>
+                                                                        <b-col v-if="uploading" cols="12">
+                                                                            <span class="file-upload-status" :class="uploadStatusTextClass">
+                                                                                <i :class="uploadStatusIconClass" class="fa"></i>
+                                                                                {{uploadStatus}}
+                                                                            </span>
+                                                                        </b-col>
+                                                                    </b-row>
+                                                                </b-col>
+
+                                                                <b-col cols="3">
+                                                                    <b-button variant="primary" @click="sendImageFiles(order.$loki, item.customerId)">
+                                                                        <i class="fa fa-upload"></i> Загрузити
+                                                                    </b-button>
+                                                                    <b-button variant="danger" @click="closeOrderItemImageSettings(order.$loki, item.customerId)">
+                                                                        <i class="fa fa-times"></i>
+                                                                    </b-button>
+                                                                </b-col>
+
+                                                            </b-row>
+                                                            
+                                                        </b-col>
+                                                    </transition>
+
+                                                </b-row>
+
+                                                <b-row v-show="item.images.length > 0" class="order-img-box">
+                                                    <b-col cols="12">
+                                                        <b-table-simple hover small caption-top responsive>
+
+                                                            <b-thead head-variant="light">
+                                                                <b-tr>
+                                                                    <b-th>Скрін</b-th>
+                                                                    <b-th>Файл</b-th>
+                                                                    <b-th>Дата</b-th>
+                                                                    <b-th>Дії</b-th>
+                                                                </b-tr>
+                                                            </b-thead>
+                                                    
+                                                            <b-tbody>
+                                                                <b-tr v-for="(image,index) in item.images" :key="index">
+
+                                                                    <b-td class="text-center">
+                                                                        <img :src="image" class="order-img-thumb" alt="order_item_image">
+                                                                    </b-td>
+                                                                    <b-td>{{image}}</b-td>
+                                                                    <b-td>{{item.datetimes[index]}}</b-td>
+                                                                    <b-td class="text-center">
+                                                                        <b-button variant="danger" @click="deleteOrderItemImage(order.$loki, item.customerId, image)">
+                                                                            <i class="fa fa-trash-alt"></i>
+                                                                        </b-button>
+                                                                    </b-td>
+
+                                                                </b-tr>
+                                                            </b-tbody>
+                                                    
+                                                        </b-table-simple>    
+                                                    </b-col>
+                                                </b-row>
+
+                                            </b-col>
+
+                                            <b-col cols="3" class="text-right">
+
+                                                <template v-if="orderItemEditOff(order.$loki, item.customerId)">
+                                                    <b-button 
+                                                        v-b-toggle="'order-' + order.$loki + '-item-' + item.customerId + '-box'" 
+                                                        variant="outline-secondary"
+                                                    >
+                                                        <span class="when-opened"><i class="fa fa-minus"></i></span> 
+                                                        <span class="when-closed"><i class="fa fa-plus"></i></span>
+                                                    </b-button>
+                                                    <b-button variant="outline-secondary" @click="editOrderItem(order.$loki, item.customerId)">
+                                                        <i class="fa fa-edit"></i>
+                                                    </b-button>
+                                                    <b-button variant="outline-secondary" @click="deleteOrderItem(order.$loki, item.customerId)">
+                                                        <i class="fa fa-trash-alt"></i>
+                                                    </b-button>
+                                                </template>
+
+                                                <b-button 
+                                                    v-if="orderItemEditOn(order.$loki, item.customerId)" 
+                                                    variant="success" 
+                                                    @click="saveOrderItem(order.$loki, item.customerId)"
+                                                >
+                                                    <i class="fa fa-save"></i> Зберегти
+                                                </b-button>
+
+                                            </b-col>
+
+                                            <b-col v-if="orderItemEditOff(order.$loki, item.customerId)" cols="12">
+                                                <b-collapse :id="'order-' + order.$loki + '-item-' + item.customerId + '-box'">
+                                                    
+                                                    <b-row class="order-item-data">
+
+                                                        <b-col cols="12">
+                                                            <p>
+                                                                <b>ПІБ:</b> {{item.customerName}} <br>
+                                                                <b>Ціна:</b> {{item.sum}} грн.<br>
+                                                                <b>Вага:</b> {{item.weight}} г.<br>
+                                                                <b>Доставка магазина:</b> {{item.storeDeliverySum}} грн.<br>
+                                                                <b>Доставка перевезника:</b> {{item.carrierDeliverySum}} грн.<br>
+                                                            </p>
+                                                        </b-col>
+
+                                                        <b-col v-if="item.images.length === 0" cols="12" class="text-center text-muted">
+                                                            Немає зображень для відображення.
+                                                        </b-col>
+
+                                                        <b-col v-if="item.images.length > 0" cols="12" class="order-img-box">
+                                                            <b-row>
+                                                                <b-col v-for="(image,index) in item.images" :key="index" cols="3">
+                                                                    <img 
+                                                                        :src="image" 
+                                                                        @click="openImagesModal(item.images, index)" 
+                                                                        class="order-img" 
+                                                                        alt="order_item_image"
+                                                                    >
+                                                                </b-col>
+                                                            </b-row>
+                                                        </b-col>
+
+                                                    </b-row>
+
+                                                </b-collapse>
+                                            </b-col>
+
+                                        </b-row>
+                                    </p>
+                                </b-card>
+
+                            </b-collapse>
+                        </b-col>
+
+                    </b-row>
+                </b-card>
+            </b-col>
+        </b-row>
+
+    </script>
+
+
+    <!-- STORES -->
+    <script type="text/x-template" id="stores-list-template">
+
+        <b-row>
+
+            <b-col cols="4" offset="8" class="text-right">
+                <b-button variant="primary" @click="addStore">
+                    <i class="fa fa-shopping-cart"></i> Додати магазин
+                </b-button>
+            </b-col>
+
+            <b-col v-if="storesList.length === 0" cols="12" class="box">
+                <b-card class="text-center text-muted">
+                    <p class="card-text">Немає елементів для відображення.</p>
+                </b-card>
+            </b-col>
+
+            <b-col 
+                v-if="storesList.length > 0" 
+                v-for="store in storesList"
+                :key="store.$loki"
+                cols="12" 
+                class="box"
+            >
+
+                <b-card>
+                    <b-row>
+
+                        <b-col v-if="editingOff(store.$loki)" cols="8" class="store-name text-left">
+                            {{store.name}}
+                        </b-col>
+
+                        <b-col v-if="editingOn(store.$loki)" cols="8" class="text-left">
+                            <b-row>
+
+                                <b-col cols="12">
+                                    <b-form-group id="store-edit-name" label="Назва:" label-for="store-name">
+                                        <b-form-input
+                                            id="store-name"
+                                            v-model="store.name"
+                                            placeholder="Назва магазина..."
+                                        ></b-form-input>
+                                    </b-form-group>
+                                </b-col>
+
+                                <b-col cols="12">
+                                    <b-form-group id="store-edit-url" label="URL:" label-for="store-url">
+                                        <b-form-input
+                                            id="store-url"
+                                            v-model="store.url"
+                                            placeholder="URL магазина..."
+                                        ></b-form-input>
+                                    </b-form-group>
+                                </b-col>
+
+                                <b-col cols="12">
+                                    <b-form-group id="store-edit-comment" label="Замітка про магазин:" label-for="store-comment">
+                                        <b-form-textarea
+                                            id="store-comment"
+                                            v-model="store.comment"
+                                            placeholder="Замітка..."
+                                            rows="3"
+                                            max-rows="6"
+                                        ></b-form-textarea>
+                                    </b-form-group>
+                                </b-col>
+
+                            </b-row>
+                        </b-col>
+
+                        <b-col cols="4" class="text-right">
+
+                            <b-button 
+                                v-if="editingOff(store.$loki)"
+                                variant="primary" 
+                                @click="toggleShowInfo(store.$loki)"
+                            >
+                                <i class="fa fa-eye"></i>
+                            </b-button>
+                            <b-button 
+                                v-if="editingOff(store.$loki)"
+                                variant="primary" 
+                                @click="editStore(store.$loki)"
+                            >
+                                <i class="fa fa-edit"></i> Редагувати
+                            </b-button>
+                            <b-button 
+                                v-if="editingOff(store.$loki)"
+                                variant="danger" 
+                                @click="deleteStore(store.$loki)"
+                            >
+                                <i class="fa fa-trash-alt"></i>
+                            </b-button>
+
+                            <b-button 
+                                v-if="editingOn(store.$loki)"
+                                variant="success" 
+                                @click="saveStore(store.$loki)"
+                            >
+                                <i class="fa fa-save"></i> Зберегти
+                            </b-button>
+
+                        </b-col>
+
+                        <transition name="slide">
+                            <b-col v-if="showingOn(store.$loki)" cols="8" class="sliding-box text-left">
+                                <p>
+                                    <b>Назва:</b> {{store.name}} <br>
+                                    <b>URL:</b> {{store.url}} <br>
+                                    <b>Замітка:</b> {{store.comment}} <br>
+                                </p>
+                            </b-col>
+                        </transition>
+
+                    </b-row>
+                </b-card>
+
+            </b-col>
+
+        </b-row>
+    
+    </script>
+
+
+    <!-- CUSTOMERS -->
+    <script type="text/x-template" id="customers-list-template">
+
+        <b-row>
+            <b-col cols="4" offset="8" class="text-right">
+                <b-button variant="primary" @click="addCustomer">
+                    <i class="fa fa-user-plus"></i> Додати клієнта
+                </b-button>
+            </b-col>
+
+            <b-col v-if="customersList.length === 0" cols="12" class="box">
+                <b-card class="text-center text-muted">
+                    <p class="card-text">Немає елементів для відображення.</p>
+                </b-card>
+            </b-col>
+
+            <b-col 
+                v-if="customersList.length > 0" 
+                v-for="customer in customersList"
+                :key="customer.$loki"
+                cols="12" 
+                class="box"
+            >
+
+                <b-card>
+                    <b-row>
+
+                        <b-col v-if="editingOff(customer.$loki)" cols="8" class="customer-name text-left">
+                            {{customer.name}}
+                        </b-col>
+
+                        <b-col v-if="editingOn(customer.$loki)" cols="8" class="text-left">
+                            <b-row>
+
+                                <b-col cols="12">
+                                    <b-form-group id="customer-edit-name" label="ПІБ:" label-for="customer-name">
+                                        <b-form-input
+                                            id="customer-name"
+                                            v-model="customer.name"
+                                            placeholder="ПІБ клієнта..."
+                                        ></b-form-input>
+                                    </b-form-group>
+                                </b-col>
+
+                                <b-col cols="12">
+                                    <b-form-group id="customer-edit-address" label="Адреса:" label-for="customer-address">
+                                        <b-form-input
+                                            id="customer-address"
+                                            v-model="customer.address"
+                                            placeholder="Адреса клієнта..."
+                                        ></b-form-input>
+                                    </b-form-group>
+                                </b-col>
+
+                                <b-col cols="12">
+
+                                    <b-row>
+                                        <b-col cols="6">
+                                            <b-form-group id="customer-edit-phone" label="Телефон:" label-for="customer-phone">
+                                                <b-form-input
+                                                    id="customer-phone"
+                                                    v-model="customer.phone"
+                                                    placeholder="Телефон клієнта..."
+                                                ></b-form-input>
+                                            </b-form-group>
+                                        </b-col>
+                                        <b-col cols="6">
+                                            <b-form-group id="customer-edit-email" label="Email:" label-for="customer-email">
+                                                <b-form-input
+                                                    id="customer-email"
+                                                    v-model="customer.email"
+                                                    placeholder="Email клієнта..."
+                                                ></b-form-input>
+                                            </b-form-group>
+                                        </b-col>
+                                    </b-row>
+
+                                </b-col>
+
+                                <b-col cols="12">
+                                    <b-form-group id="customer-edit-comment" label="Замітка про клієнта:" label-for="customer-comment">
+                                        <b-form-textarea
+                                            id="customer-comment"
+                                            v-model="customer.comment"
+                                            placeholder="Замітка..."
+                                            rows="3"
+                                            max-rows="6"
+                                        ></b-form-textarea>
+                                    </b-form-group>
+                                </b-col>
+
+                            </b-row>
+                        </b-col>
+
+                        <b-col cols="4" class="text-right">
+
+                            <b-button 
+                                v-if="editingOff(customer.$loki)"
+                                variant="primary" 
+                                @click="toggleShowInfo(customer.$loki)"
+                            >
+                                <i class="fa fa-eye"></i>
+                            </b-button>
+                            <b-button 
+                                v-if="editingOff(customer.$loki)"
+                                variant="primary" 
+                                @click="editCustomer(customer.$loki)"
+                            >
+                                <i class="fa fa-user-edit"></i> Редагувати
+                            </b-button>
+                            <b-button 
+                                v-if="editingOff(customer.$loki)"
+                                variant="danger" 
+                                @click="deleteCustomer(customer.$loki)"
+                            >
+                                <i class="fa fa-trash-alt"></i>
+                            </b-button>
+
+                            <b-button 
+                                v-if="editingOn(customer.$loki)"
+                                variant="success" 
+                                @click="saveCustomer(customer.$loki)"
+                            >
+                                <i class="fa fa-save"></i> Зберегти
+                            </b-button>
+
+                        </b-col>
+
+                        <transition name="slide">
+                            <b-col v-if="showingOn(customer.$loki)" cols="8" class="sliding-box text-left">
+                                <p>
+                                    <b>ПІБ:</b> {{customer.name}} <br>
+                                    <b>Адреса:</b> {{customer.address}} <br>
+                                    <b>Телефон:</b> {{customer.phone}} <br>
+                                    <b>Email:</b> {{customer.email}} <br>
+                                    <b>Замітка:</b> {{customer.comment}} <br>
+                                </p>
+                            </b-col>
+                        </transition>
+
+                    </b-row>
+                </b-card>
+
+            </b-col>
+        </b-row>
+    
+    </script>
+
+
+    <!--ORDER-ITEM-IMAGES-MODAL-->
+    <script type="text/x-template" id="order-item-images-modal-template">
+
+        <div class="modal fade" id="orderItemImagesModal" tabindex="-1" role="dialog" aria-labelledby="orderItemImagesModalLabel">
+            <div class="modal-dialog modal-lg" role="document">
+                <div class="row modal-content">
+
+                    
+                    <div class="col-md-12 modal-header">
+                        <div class="col-md-1 text-right no-h-pad">
+                            <a type="button" class="button default-btn" data-dismiss="modal">
+                                <i class="fa fa-times"></i>
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="col-md-12 modal-body">
+                        <div class="row no-h-marg">
+                            <div class="col-12 text-center no-h-pad">
+
+                                <button v-if="imagesList && imagesList.length > 1" class="img-arrow prev-arrow" @click="prevImg">
+                                    <i class="fa fa-chevron-left"></i>
+                                </button>
+                                <button v-if="imagesList && imagesList.length > 1" class="img-arrow next-arrow" @click="nextImg">
+                                    <i class="fa fa-chevron-right"></i>
+                                </button>
+                                <img :src="imgUrl" :alt="order item image" class="product-img">
+
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </script>
+
+
+    <!-- Load polyfills to support older browsers -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es2015%2CIntersectionObserver"></script>
+
+    <script src="js/vue.min.js"></script>
+    <script src="js/bootstrap-vue.min.js"></script>
+    <script src="js/vuex.min.js"></script>
+    <script src="js/vue-router.min.js"></script>
+    <script src="js/jquery.min.js"></script>
+    <script src="js/lokijs.min.js"></script>
+    <script src="js/vue-toasts.min.js"></script>
+    <script src="js/utils.js"></script>
+
+    <script src="components/OrdersList.js"></script>
+    <script src="components/StoresList.js"></script>
+    <script src="components/CustomersList.js"></script>
+
+    <script src="components/App.js"></script>
+
+</body>
+
+</html>

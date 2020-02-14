@@ -1,0 +1,169 @@
+.content-wrapper {
+    margin: 25px 0;
+}
+
+.collapsed > .when-opened,
+:not(.collapsed) > .when-closed {
+  display: none;
+}
+
+.hidden {
+    display: none;
+}
+
+.nav-menu {
+    margin-top: 20px;
+}
+.nav-item {
+    cursor: pointer;
+    margin-right: 4px;
+}
+.nav-item a {
+    color: #6c757d;
+    text-decoration: none;
+    font-size: 16px;
+    border: 1px solid #6c757d;
+    padding: 7px 10px;
+    border-radius: 4px;
+}
+.nav-item a:hover,
+.nav-item a.router-link-active {
+    color: #fff;
+    background-color: #6c757d;
+}
+
+.order-item {
+    margin: 10px 0;
+}
+
+.box {
+    margin: 10px 0;
+}
+
+select {
+    cursor: pointer;
+}
+
+.customer-name {
+    font-size: 18px;
+}
+
+.notices .toast {
+    font-size: 16px;
+}
+
+.text-red {
+    color: #dc3545;
+}
+.text-green {
+    color: #28a745;
+}
+
+.per-page-select {
+    max-width: 64px;
+    margin-left: 8px;
+}
+
+.order-img-box {
+    margin-top: 20px;
+}
+.order-img-thumb {
+    max-width: 100px;
+}
+.order-img {
+    max-width: 100%;
+    cursor: pointer;
+}
+
+.order-status-icon {
+    margin-right: 5px;
+}
+.order-status-icon.open {
+    color: #007bff;
+}
+.order-status-icon.closed {
+    color: #28a745;
+}
+
+.order-modal-img {
+    max-width: 98%;
+}
+
+.img-arrow {
+    position: absolute;
+    font-size: 16px;
+    color: #212529;
+    background-color: #fff;
+    border: 1px solid #888;
+}
+
+.img-arrow:hover {
+    color: #212529;
+    background-color: #e5e5e5;
+}
+
+.img-arrow:active {
+    color: #212529;
+    background-color: #b9b9b9 !important;
+}
+
+.img-arrow:focus {
+    outline: none;
+}
+
+.img-arrow.prev-arrow {
+    left: 20px;
+    top: 50%;
+    padding: 12px 14px 10px 12px;
+}
+
+.img-arrow.next-arrow {
+    right: 20px;
+    top: 50%;
+    padding: 12px 12px 10px 14px;
+}
+
+.copyright {
+    margin-top: 25px;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity .5s;
+}
+
+.fade-enter,
+.fade-leave-to {
+    opacity: 0;
+}
+
+.sliding-box {
+    transform-origin: top;
+    transition: transform .3s;
+}
+.slide-enter,
+.slide-leave-to {
+    transform: scaleY(0);
+}
+
+.anim-rotate {
+    animation-name: rotation;
+    animation-duration: 1.5s;
+    animation-iteration-count: infinite;
+    animation-timing-function: linear;
+}
+
+@keyframes rotation {
+    0% {
+        -webkit-transform:rotate(0deg);
+        -moz-transform:rotate(0deg);
+        -o-transform:rotate(0deg);
+        transform:rotate(0deg);
+    }
+    100% {
+        -webkit-transform:rotate(360deg);
+        -moz-transform:rotate(360deg);
+        -o-transform:rotate(360deg);
+        transform:rotate(360deg);
+    }
+}
